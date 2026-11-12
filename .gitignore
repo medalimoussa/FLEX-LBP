@@ -3,3 +3,17 @@ __pycache__/
 build/
 dist/
 *.pt
+*.pth
+*.npz
+*.zip
+*.log
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+.DS_Store
+.idea/
+.vscode/
+runs/
+.claude/
+.codex

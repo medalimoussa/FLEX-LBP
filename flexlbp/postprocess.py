@@ -3,7 +3,9 @@
 - uniform_u2: projects every 256-bin code histogram onto the 58 uniform patterns (at most two circular 0/1
   transitions) plus one bin that pools all non-uniform codes (13,824 -> 3,186 dimensions for the full descriptor).
 - power_normalize: sign(z) |z|^alpha, then l2 normalization (alpha = 0.7 in the paper).
-- standardized 1-NN: z-score with training statistics, exact Euclidean nearest neighbor (the paper's readout).
+- standardized 1-NN: z-score with training statistics, exact Euclidean nearest neighbor (the paper's main readout).
+- shrinkage LDA: z-score with training statistics, then scikit-learn's LinearDiscriminantAnalysis(solver="lsqr",
+  shrinkage="auto"), whose shrinkage is the Ledoit-Wolf estimate (the paper's second readout; needs scikit-learn).
 """
 from __future__ import annotations
 
@@ -48,3 +50,20 @@ def standardized_1nn(train: torch.Tensor, train_labels: torch.Tensor, test: torc
     a = ((train - mean) / std).float(); b = ((test - mean) / std).float()
     idx = torch.cat([torch.cdist(b[s:s + batch_size], a).argmin(1) for s in range(0, len(b), batch_size)])
     return train_labels[idx]
+
+
+def shrinkage_lda(train: torch.Tensor, train_labels, test: torch.Tensor):
+    """Predicted labels of `test` by shrinkage LDA after z-scoring with the training statistics, as in the paper:
+    StandardScaler, then LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto"). Needs scikit-learn."""
+    try:
+        from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+        from sklearn.preprocessing import StandardScaler
+    except ImportError as err:
+        raise ImportError('shrinkage_lda needs scikit-learn: pip install ".[lda]"') from err
+    xtr = train.detach().cpu().double().numpy(); xte = test.detach().cpu().double().numpy()
+    is_tensor = torch.is_tensor(train_labels)
+    ytr = train_labels.detach().cpu().numpy() if is_tensor else train_labels
+    scaler = StandardScaler().fit(xtr)
+    lda = LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto").fit(scaler.transform(xtr), ytr)
+    pred = lda.predict(scaler.transform(xte))
+    return torch.as_tensor(pred) if is_tensor else pred

@@ -7,8 +7,8 @@ used at test time.
 The layer has three branches (fine, mid, coarse). Each branch applies its own 3x3 color transform, quantizes the
 result to a learnable number of gray levels (rounding STE; frozen at 256 levels unless learned) and applies an 8-neighbor
 sign-plus-magnitude LBP operator with learnable radii (four basis radii, smooth directional field), angles (softmax
-increments) and per-direction thresholds, on all nine channel pairs (center channel i, neighbor channel j, as in
-opponent color LBP). The output is the concatenation of the l1-normalized branch histograms, l2-normalized once:
+increments) and per-direction thresholds, on all nine channel pairs (center channel i, neighbor channel j). Like
+opponent color LBP, it compares channels with each other, but it keeps both orderings of each pair. The output is the concatenation of the l1-normalized branch histograms, l2-normalized once:
 3 branches x 9 pairs x 2 codes x 256 bins = 13,824 dimensions.
 """
 from __future__ import annotations
@@ -22,10 +22,12 @@ import torch.nn.functional as F
 PAIRS = [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2)]
 BRANCHES = ("fine", "mid", "coarse")
 
-# radius templates: (initial radius, lower bound, upper bound) per branch
+# radius templates: (initial radius, lower bound, upper bound) per branch; the paper uses compact on NewBarkTex,
+# compact_parquet on Parquet and wide on every other benchmark
 TEMPLATES = {
     "wide": {"fine": (2.0, 1.0, 3.0), "mid": (6.0, 4.0, 8.0), "coarse": (10.0, 7.0, 13.0)},
     "compact": {"fine": (2.0, 1.5, 4.0), "mid": (5.0, 3.5, 7.0), "coarse": (8.0, 6.5, 10.5)},
+    "compact_parquet": {"fine": (2.0, 1.0, 3.0), "mid": (5.0, 3.5, 7.0), "coarse": (8.0, 6.0, 10.0)},
 }
 
 # which parameter groups each configuration of the paper learns
@@ -225,7 +227,7 @@ class FLEXLBP(nn.Module):
     """Three-branch FLEX-LBP layer: (B, 3, H, W) RGB in [0, 1] -> (B, 13,824) descriptor.
 
     Args:
-        template: 'wide' or 'compact' radius template, or a dict {branch: (init, min, max)}.
+        template: 'wide', 'compact' or 'compact_parquet' radius template, or a dict {branch: (init, min, max)}.
         learn: one of PRESETS ('fixed', 'geometry', 'all_joint', ...) or an iterable of parameter groups
             ('color', 'radius', 'angles', 'threshold', 'quantization') to learn; the others are frozen.
         K, radius_directions, axis_temperature, tau: operator settings of the paper (8, 4, 8, 10).

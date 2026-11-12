@@ -1,5 +1,6 @@
 """Train FLEX-LBP on a folder of images and evaluate it by standardized 1-NN.
 
+    pip install .        # once, from the repository root (or run with PYTHONPATH=.)
     python examples/train_folder.py --train data/train --test data/test --learn geometry --template wide
 
 Each folder holds one subfolder per class; images are converted to RGB and resized to --size x --size. The trained

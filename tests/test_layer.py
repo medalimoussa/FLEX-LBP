@@ -95,6 +95,16 @@ class TestLayer(unittest.TestCase):
         tr = torch.tensor([[0.0, 0.0], [10.0, 0.0]]); te = torch.tensor([[1.0, 5.0], [9.0, -3.0]])
         self.assertEqual(flexlbp.standardized_1nn(tr, torch.tensor([3, 7]), te).tolist(), [3, 7])
 
+    def test_shrinkage_lda(self):
+        try:
+            import sklearn  # noqa: F401
+        except ImportError:
+            self.skipTest("scikit-learn is not installed")
+        g = torch.Generator().manual_seed(0)
+        tr = torch.cat([torch.randn(20, 5, generator=g), torch.randn(20, 5, generator=g) + 4.0])
+        te = torch.tensor([[0.0] * 5, [4.0] * 5])
+        self.assertEqual(flexlbp.shrinkage_lda(tr, torch.tensor([3] * 20 + [7] * 20), te).tolist(), [3, 7])
+
     def test_fit(self):
         g = torch.Generator().manual_seed(1)
         stripes = 0.5 + 0.3 * torch.sin(1.3 * torch.arange(32.0)).view(1, 1, 1, 32) + 0.05 * torch.rand(10, 3, 32, 32, generator=g)

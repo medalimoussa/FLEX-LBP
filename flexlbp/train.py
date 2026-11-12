@@ -4,7 +4,7 @@ Adam with component-specific learning rates (radii 2e-3; color transforms, angle
 and quantization 5e-4), weight decay 1e-4 on the color transforms and proxies only, a step schedule that halves every
 rate once (after 6, 8 or 12 epochs for 8-, 12- or 20-epoch runs), no data augmentation, and checkpoint selection by
 standardized 1-NN accuracy (raw descriptors, reference set = the remaining training images) on a stratified 15% holdout,
-from the second epoch on.
+from the first epoch on, as in the paper's runs.
 """
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def parameter_groups(model, proxy_loss):
 
 
 def fit(model, images: torch.Tensor, labels: torch.Tensor, epochs: int = 8, batch_size: int = 8, seed: int = 42,
-        holdout: float = 0.15, min_selection_epoch: int = 2, device=None, verbose: bool = True):
+        holdout: float = 0.15, min_selection_epoch: int = 1, device=None, verbose: bool = True):
     """Train `model` (a FLEXLBP layer) on images (N, 3, H, W) in [0, 1] and integer labels; returns the model with
     the checkpoint of best validation 1-NN accuracy, and the per-epoch history."""
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")

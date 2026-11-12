@@ -15,8 +15,8 @@ directly.
 - **Exact inference:** the forward value is the exact histogram of the hard codes, during training too.
 - **Interpretable:** `parameters_summary()` returns the learned radii, angles (in degrees), thresholds and color
   transforms of each branch.
-- **Presets** for every configuration of the paper, from the hand-crafted operator (`fixed`) to everything learned
-  jointly (`all_joint`).
+- **Presets** for every configuration of the paper, from the hand-crafted operator (`fixed`) to the fully learned
+  descriptor (`all_joint`, which learns everything except the quantization).
 
 ## Paper
 
@@ -26,8 +26,9 @@ This anonymized copy of the code accompanies the submission. The citation will b
 ## Installation
 
 ```bash
-pip install .            # requires PyTorch >= 1.10
-pip install .[convert]   # adds PyYAML, only needed to load research checkpoints
+pip install .              # requires Python >= 3.9 and PyTorch >= 1.13 (tested with Python 3.10 and PyTorch 2.6)
+pip install ".[lda]"      # adds scikit-learn for the shrinkage LDA readout
+pip install ".[convert]"  # adds PyYAML, only needed to load research checkpoints
 ```
 
 ## Quick start
@@ -52,11 +53,13 @@ z.sum().backward()                                  # surrogate gradients reach 
 - No data augmentation.
 - The checkpoint is selected by standardized 1-NN accuracy on a 15% stratified holdout of the training images.
 
-The loss is a cosine proxy loss with an additive margin, plus mild geometry and threshold regularizers. At test time,
-the descriptors are projected onto uniform patterns, power-normalized and classified by standardized 1-NN.
+The loss is a cosine proxy loss with an additive margin, plus mild geometry and threshold regularizers. For
+evaluation, the descriptors are projected onto uniform patterns, power-normalized and classified by standardized 1-NN
+(the paper's main readout) or by shrinkage LDA (its second readout).
 
 ```python
-from flexlbp import FLEXLBP, postprocess, standardized_1nn
+import torch
+from flexlbp import FLEXLBP, postprocess, shrinkage_lda, standardized_1nn
 from flexlbp.train import fit
 
 torch.manual_seed(42)                                # the color transforms start at I + 0.01 N(0, 1)
@@ -66,11 +69,12 @@ layer, history = fit(layer, train_images, train_labels, epochs=8, batch_size=8)
 train_desc = postprocess(layer.describe(train_images))   # (N, 3186)
 test_desc = postprocess(layer.describe(test_images))
 pred = standardized_1nn(train_desc, train_labels, test_desc)
+pred_lda = shrinkage_lda(train_desc, train_labels, test_desc)   # needs scikit-learn
 print(layer.parameters_summary())                         # the learned parameters
 ```
 
 `examples/train_folder.py` runs the same pipeline on a folder of images (one subfolder per class). It also needs
-NumPy and Pillow.
+NumPy and Pillow. Install the package first (`pip install .`), or run it from the repository root with `PYTHONPATH=.`.
 
 ## Configurations
 
@@ -94,20 +98,24 @@ Radius templates, given as (initial radius, lower bound, upper bound) for the fi
 |-------------|--------------|--------------|-----------------|
 | `wide`      | 2 in [1, 3]  | 6 in [4, 8]  | 10 in [7, 13]   |
 | `compact`   | 2 in [1.5, 4]| 5 in [3.5, 7]| 8 in [6.5, 10.5]|
+| `compact_parquet` | 2 in [1, 3] | 5 in [3.5, 7] | 8 in [6, 10] |
 
 A dict `{branch: (init, min, max)}` gives any other template.
 
 Other options:
 
-- `support_size=3` compares 3×3 medians instead of single pixels. This is the paper's remedy for additive noise.
-- `histogram_estimator="bitflip"` selects the bit-flip surrogate gradient used in the paper's ablation.
+- `support_size=3` compares 3×3 medians instead of single pixels. This is one of the paper's two remedies for additive
+  noise (the other is a 3×3 median-filtered input); both are applied at inference, without retraining.
+- `histogram_estimator="bitflip"` selects the bit-aware (bit-flip) surrogate gradient that the paper compares with
+  its adjacent-bin estimator.
 - `input_quantization=False` removes the gray-level quantization step.
 
 ## Descriptor layout
 
 Each of the three branches (fine, mid, coarse) applies its own color transform. It then computes 8-neighbor
 sign and magnitude codes on the nine channel pairs (center channel i, neighbor channel j), in the order RR, RG, RB,
-GR, GG, GB, BR, BG, BB, as in opponent color LBP. Each code histogram has 256 bins. The index of bin `code` of
+GR, GG, GB, BR, BG, BB. Like opponent color LBP, it compares channels with each other, but it keeps both orderings
+of each pair. Each code histogram has 256 bins. The index of bin `code` of
 component `c` (0 = sign, 1 = magnitude) for pair `p` in branch `b` is
 
     ((b * 9 + p) * 2 + c) * 256 + code
@@ -148,10 +156,11 @@ What the package provides:
   parameters are learned), Adam with the learning rates above and weight decay 1e-4 on the color transforms and
   proxies only, one step decay that halves the rates (after 6, 8 or 12 epochs for 8-, 12- or 20-epoch runs), no data
   augmentation, and checkpoint selection by standardized 1-NN accuracy on a 15% stratified holdout of the training
-  images, from the second epoch on.
+  images, from the first epoch on.
 - **The evaluation pipeline:** `postprocess` (uniform-u2 projection, 13,824 → 3,186 dimensions, then power
-  normalization with alpha = 0.7 and l2 normalization) and the readout `standardized_1nn` (z-scoring with the training
-  statistics, then exact Euclidean nearest neighbor).
+  normalization with alpha = 0.7 and l2 normalization) and the two readouts of the paper: `standardized_1nn` (z-scoring
+  with the training statistics, then exact Euclidean nearest neighbor) and `shrinkage_lda` (z-scoring, then
+  scikit-learn's `LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto")`).
 - **Tests against the research code** (`tests/test_reproduction.py`, see [Tests](#tests)). They load six trained
   checkpoints of the paper with `flexlbp.convert`, check that the layer gives the descriptors and parameter gradients
   of the research implementation, and recompute one reported accuracy from the images. They need the research
@@ -162,8 +171,8 @@ The paper's settings per benchmark (all images are resized to 128×128 pixels):
 | Benchmark                   | `template=` | `epochs=` | `batch_size=` |
 |-----------------------------|-------------|----------:|--------------:|
 | NewBarkTex                  | `compact`   | 8         | 4             |
-| Parquet                     | `compact`   | 20        | 4             |
-| KTH-TIPS2                   | `wide`      | see below | 8             |
+| Parquet                     | `compact_parquet` | 20  | 4             |
+| KTH-TIPS2                   | `wide`      | at most 8, see below | 8  |
 | Outex TC31, TC32            | `wide`      | 12        | 8             |
 | Outex TC13, TC34 and USPtex | `wide`      | 20        | 8             |
 | Kather-CRC                  | `wide`      | 8         | 8             |
@@ -175,8 +184,6 @@ What it does not include yet:
   the dataset providers);
 - the KTH-TIPS2 protocol, which chooses the number of epochs on inner leave-one-sample-out splits of the training
   samples and then retrains on all of them;
-- the shrinkage LDA readout (the research scripts use scikit-learn's
-  `LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto")` on the standardized descriptors);
 - the baselines and the scripts that produced the paper's tables, figures and significance tests;
 - the research implementation that the reproduction tests compare against.
 
@@ -198,12 +205,12 @@ python -m unittest discover -s tests -t .
 - both surrogate estimators;
 - the uniform mapping;
 - small images and the median support;
-- the standardized 1-NN readout;
+- the standardized 1-NN and shrinkage LDA readouts (the LDA test is skipped without scikit-learn);
 - the training loop.
 
 `tests/test_reproduction.py` compares the layer with the research implementation of the paper on six trained
-checkpoints, which cover the Geometry, All joint, Mixer+Q and Fixed configurations, the bit-flip estimator and the
-median support. The descriptors must agree within 1e-6 (on these six checkpoints they are identical) and every
+checkpoints, which cover the Geometry, All joint, Mixer+Q and Fixed configurations, the bit-aware (bit-flip)
+estimator and the median support. The descriptors must agree within 1e-6 (on these six checkpoints they are identical) and every
 parameter gradient within a relative 1e-4. The test also recomputes a reported accuracy from the images (NewBarkTex,
 Geometry, seed 42: 84.19%). It needs the research code, its trained checkpoints and its cached images, which are not
 part of this package, as well as PyYAML and NumPy. Point the test to them with environment variables:
