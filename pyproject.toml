@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flex-lbp"
+version = "0.1.0"
+description = "FLEX-LBP: learnable local binary patterns with exact binary inference (PyTorch)"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+dependencies = ["torch>=1.10"]
+keywords = ["local binary patterns", "LBP", "texture classification", "texture descriptor", "learnable LBP",
+            "straight-through estimator", "interpretable features", "color texture", "PyTorch"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
+
+[project.optional-dependencies]
+convert = ["pyyaml"]
+
+[tool.setuptools]
+packages = ["flexlbp"]
