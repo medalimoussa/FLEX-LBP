@@ -29,7 +29,7 @@ directly.
 ## Paper
 
 *FLEX-LBP: Learning Local Binary Patterns with Exact Binary Inference for Texture Classification*, under review.
-This anonymized copy of the code accompanies the submission. The citation will be added on publication.
+The citation will be added on publication.
 
 ## Installation
 
