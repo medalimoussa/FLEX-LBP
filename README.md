@@ -4,6 +4,14 @@ A PyTorch layer for **learnable local binary patterns with exact binary inferenc
 paper *FLEX-LBP: Learning Local Binary Patterns with Exact Binary Inference for Texture Classification* (see
 [Paper](#paper)).
 
+![Overview of FLEX-LBP](docs/flexlbp_overview.png)
+
+*Overview of FLEX-LBP (Fig. 1 of the paper). Each of the three branches learns its own color transform and sampling
+geometry (radii, angles and thresholds). The binary encoding stays fixed, with hard comparisons and exact histogram
+counts. During training, straight-through estimators (STE) carry the gradients across the two binary steps. For
+evaluation, the descriptor is postprocessed and classified by standardized 1-NN. Input texture from USPtex (Backes et
+al., 2012).*
+
 FLEX-LBP keeps the LBP operator, which is binary codes and histograms, and learns its design choices by
 backpropagation. These choices are the color transform, sampling radii, sampling angles, comparison thresholds and
 gray-level quantization. The forward pass always computes hard comparisons and exact histogram counts. Surrogate

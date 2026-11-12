@@ -39,7 +39,7 @@ def main():
     ap.add_argument("--train", required=True, help="training folder (one subfolder per class)")
     ap.add_argument("--test", required=True, help="test folder (same class subfolders)")
     ap.add_argument("--learn", default="geometry", help="preset: fixed, color, radius, threshold, geometry, mixer_q, all_joint")
-    ap.add_argument("--template", default="wide", help="radius template: wide or compact")
+    ap.add_argument("--template", default="wide", help="radius template: wide, compact or compact_parquet")
     ap.add_argument("--epochs", type=int, default=8)
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--size", type=int, default=128)

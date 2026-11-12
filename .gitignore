@@ -15,5 +15,3 @@ venv/
 .idea/
 .vscode/
 runs/
-.claude/
-.codex
